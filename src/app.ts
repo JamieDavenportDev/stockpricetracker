@@ -45,12 +45,15 @@ class StockFetcher {
     private static readonly FREQUENCY = 3;
 
     private running: boolean;
-    private writeStream: fs.WriteStream;
+    private writeStreams: Map<string, fs.WriteStream>;
 
     // Constructor
     constructor() {
         this.running = true;
-        this.writeStream = fs.createWriteStream("./stock-prices.txt");
+        this.writeStreams = new Map<string, fs.WriteStream>();
+        StockFetcher.STOCKS.forEach((stock) => {
+            this.writeStreams.set(stock.name, fs.createWriteStream(`./${stock.name}-prices.txt`));
+        });
 
         this.StartLooping()
             .then(() => {
@@ -78,19 +81,24 @@ class StockFetcher {
     private async GetPrices(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             try {
-                const fetches: Promise<Price>[] = new Array<Promise<Price>>();
-                StockFetcher.STOCKS.forEach((stock) => {
-                    fetches.push(this.GetPrice(stock));
+                const promiseArray = StockFetcher.STOCKS.map((stock) => {
+                    return new Promise<void>((res) => {
+                        const timeStarted: Date = new Date();
+                        this.GetPrice(stock)
+                            .then((res) => {
+                                return this.WriteStockToFile(res, timeStarted);
+                            })
+                            .catch((err) => {
+                                console.error("Something went wrong, error: " + err);
+                            })
+                            .then(() => {
+                                res();
+                            });
+                    });
                 });
-                const timeStarted: Date = new Date();
-                Promise.all(fetches)
-                    .then((result: Price[]) => {
-                        this.WriteStocksToFile(result, timeStarted);
+                Promise.all(promiseArray)
+                    .then(() => {
                         resolve();
-                    })
-                    .catch((err) => {
-                        console.error("Something went wrong, error: " + err);
-                        reject(err);
                     });
             } catch (e) {
                 console.log("Something went wrong in looping, error: " + e);
@@ -119,23 +127,28 @@ class StockFetcher {
         });
     }
 
-    private async WriteStocksToFile(stocks: Price[], time: Date): Promise<void> {
+    private async WriteStockToFile(stock: Price, time: Date): Promise<void> {
         console.log(`${time.toISOString()} :`);
-        console.table(stocks);
+        console.table(stock);
 
         const lineToWrite: string = 
-            time.toISOString() +
-            JSON.stringify(stocks) +
+            JSON.stringify({time, ...stock}) +
             "\n";
 
-        this.writeStream.write(lineToWrite, (err) => {
-            if (err) {
-                console.error("Failed to write to file, error: " + err);
-                Promise.reject(err);
-            } else {
-                Promise.resolve();
-            }
-        });
+        const writeStream = this.writeStreams.get(stock.name);
+        if (writeStream) {
+            writeStream.write(lineToWrite, (err) => {
+                if (err) {
+                    console.error("Failed to write to file, error: " + err);
+                    Promise.reject(err);
+                } else {
+                    Promise.resolve();
+                }
+            });
+        } else {
+            console.error("No writestream found");
+            Promise.reject("No writestream found");
+        }
     }
 
     private async Delay(seconds: number): Promise<void> {
