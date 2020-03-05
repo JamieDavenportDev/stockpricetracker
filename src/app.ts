@@ -5,20 +5,38 @@ import { IncomingMessage } from "http";
         1. [DONE] Fetch a price from API
         2. [DONE] Run regex to get the price from that API call
         3. Store the resulting price in a local file
-        4. Adapt above to loop over list of stocks
+        4. [DONE] Adapt above to loop over list of stocks
         5. Make regex work for each stock by substituting stock name
         6. Make process interuptable
 */
 
-// API Link:
-// https://www.google.com/async/finance_wholepage_price_updates?ei=AkRUXrqGAZKP8gLipYzoDQ&yv=3&async=mids:%2Fm%2F0ckhqlx,currencies:,_fmt:jspb
+interface Stock {
+    name: string;
+    url: string;
+    regex: RegExp;
+}
 
 class StockFetcher {
 
     //Properties
-    private static readonly URL = "https://www.google.com/async/finance_wholepage_price_updates?ei=AkRUXrqGAZKP8gLipYzoDQ&yv=3&async=mids:%2Fm%2F0ckhqlx,currencies:,_fmt:jspb";
-    private static readonly REGEX = /(?<=("(TSLA)",))"(.*?)"/;
-    private static readonly FREQUENCY = 10;
+    private static readonly STOCKS: Stock[] = [
+        {
+            name: "Tesla",
+            url: "https://www.google.com/async/finance_wholepage_price_updates?ei=AkRUXrqGAZKP8gLipYzoDQ&yv=3&async=mids:%2Fm%2F0ckhqlx,currencies:,_fmt:jspb",
+            regex: /(?<=("(TSLA)",))"(.*?)"/,
+        },
+        {
+            name: "Uber",
+            url: "https://www.google.com/async/finance_wholepage_price_updates?ei=aDphXrWLH5HagQaFmaHwBQ&yv=3&async=mids:%2Fg%2F11fl472g5t,currencies:,_fmt:jspb",
+            regex: /(?<=("(UBER)",))"(.*?)"/,
+        },
+        {
+            name: "Facebook",
+            url: "https://www.google.com/async/finance_wholepage_price_updates?ei=2jphXrOMJPLuxgOY5I3ACg&yv=3&async=mids:%2Fm%2F0rz9htl,currencies:,_fmt:jspb",
+            regex: /(?<=("(FB)",))"(.*?)"/,
+        },
+    ];
+    private static readonly FREQUENCY = 3;
 
     private running: boolean;
 
@@ -35,30 +53,44 @@ class StockFetcher {
     }
 
     // Methods
-
     private async StartLooping(): Promise<void> {
-        try {
-            // Also need a stopping mechanism
-            while (this.running) {
-                const result = await this.GetPrice();
-                console.log(result);
+        // Also need a stopping mechanism
+        while (this.running) {
+            try {
+                await this.GetPrices();
                 await this.Delay(StockFetcher.FREQUENCY);
+            } catch (e) {
+                console.log("An error occurred, error: " + e);
             }
-            Promise.resolve();
-        } catch (e) {
-            console.log("An error occurred, error: " + e);
-            // Don't necessarily need to reject here, can handle the error and try to continue
-            // Will need to move the try catch inside the loop to do so
-            Promise.reject(e);
         }
+        Promise.resolve();
     }
 
-    private async GetPrice(): Promise<number> {
+    private async GetPrices(): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            try {
+                StockFetcher.STOCKS.forEach((stock) => {
+                    this.GetPrice(stock)
+                        .then((result) => {
+                            console.log(stock.name + ": " + result);
+                        })
+                        .catch((err) => {
+                            console.log(`An error occurred while fetching stock for ${stock.name}. Error: ${err}`);
+                        });
+                });
+                resolve();
+            } catch (e) {
+                console.log("Something went wrong in looping, error: " + e);
+                reject(e);
+            }
+        });
+    }
+
+    private async GetPrice(stock: Stock): Promise<number> {
         return new Promise<number>((resolve, reject) => {
-            const url = StockFetcher.URL;
-            https.get(url, (res: IncomingMessage) => {
+            https.get(stock.url, (res: IncomingMessage) => {
                 res.on('data', (data) => {
-                    const regMatch = data.toString().match(StockFetcher.REGEX);
+                    const regMatch = data.toString().match(stock.regex);
                     if (regMatch && regMatch.length > 0) {
                         // Need to set the floating point to 2 decimals always e.g. 732.00
                         const result = parseFloat(regMatch[0].replace("\"", ""));
