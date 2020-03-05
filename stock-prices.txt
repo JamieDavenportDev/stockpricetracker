@@ -1,0 +1,4 @@
+2020-03-05T18:36:44.562Z[{"name":"Tesla","price":"735.64"},{"name":"Uber","price":"32.40"},{"name":"Facebook","price":"185.84"}]
+2020-03-05T18:36:47.699Z[{"name":"Tesla","price":"734.86"},{"name":"Uber","price":"32.40"},{"name":"Facebook","price":"185.83"}]
+2020-03-05T18:36:50.797Z[{"name":"Tesla","price":"734.86"},{"name":"Uber","price":"32.38"},{"name":"Facebook","price":"185.83"}]
+2020-03-05T18:36:54.019Z[{"name":"Tesla","price":"734.86"},{"name":"Uber","price":"32.38"},{"name":"Facebook","price":"185.84"}]

@@ -1,4 +1,6 @@
 import * as https from "https";
+import * as fs from "fs";
+import * as util from "util";
 import { IncomingMessage } from "http";
 /*
     TODOS:
@@ -14,6 +16,11 @@ interface Stock {
     name: string;
     url: string;
     regex: RegExp;
+}
+
+interface Price {
+    name: string;
+    price: string;
 }
 
 class StockFetcher {
@@ -39,10 +46,13 @@ class StockFetcher {
     private static readonly FREQUENCY = 3;
 
     private running: boolean;
+    private writeStream: fs.WriteStream;
 
     // Constructor
     constructor() {
         this.running = true;
+        this.writeStream = fs.createWriteStream("./stock-prices.txt");
+
         this.StartLooping()
             .then(() => {
                 console.log("done");
@@ -69,16 +79,20 @@ class StockFetcher {
     private async GetPrices(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             try {
+                const fetches: Promise<Price>[] = new Array<Promise<Price>>();
                 StockFetcher.STOCKS.forEach((stock) => {
-                    this.GetPrice(stock)
-                        .then((result) => {
-                            console.log(stock.name + ": " + result);
-                        })
-                        .catch((err) => {
-                            console.log(`An error occurred while fetching stock for ${stock.name}. Error: ${err}`);
-                        });
+                    fetches.push(this.GetPrice(stock));
                 });
-                resolve();
+                const timeStarted: Date = new Date();
+                Promise.all(fetches)
+                    .then((result: Price[]) => {
+                        this.WriteStocksToFile(result, timeStarted);
+                        resolve();
+                    })
+                    .catch((err) => {
+                        console.error("Something went wrong, error: " + err);
+                        reject(err);
+                    });
             } catch (e) {
                 console.log("Something went wrong in looping, error: " + e);
                 reject(e);
@@ -86,15 +100,14 @@ class StockFetcher {
         });
     }
 
-    private async GetPrice(stock: Stock): Promise<number> {
-        return new Promise<number>((resolve, reject) => {
+    private async GetPrice(stock: Stock): Promise<Price> {
+        return new Promise<Price>((resolve, reject) => {
             https.get(stock.url, (res: IncomingMessage) => {
                 res.on('data', (data) => {
                     const regMatch = data.toString().match(stock.regex);
                     if (regMatch && regMatch.length > 0) {
-                        // Need to set the floating point to 2 decimals always e.g. 732.00
-                        const result = parseFloat(regMatch[0].replace("\"", ""));
-                        resolve(result);
+                        const result = parseFloat(regMatch[0].replace("\"", "")).toFixed(2);
+                        resolve({name: stock.name, price: result});
                     } else {
                         reject("Could not find a regex match");
                     }
@@ -104,6 +117,25 @@ class StockFetcher {
                     reject(err);
                 })
             });
+        });
+    }
+
+    private async WriteStocksToFile(stocks: Price[], time: Date): Promise<void> {
+        console.log(`${time.toISOString()} :`);
+        console.table(stocks);
+
+        const lineToWrite: string = 
+            time.toISOString() +
+            JSON.stringify(stocks) +
+            "\n";
+
+        this.writeStream.write(lineToWrite, (err) => {
+            if (err) {
+                console.error("Failed to write to file, error: " + err);
+                Promise.reject(err);
+            } else {
+                Promise.resolve();
+            }
         });
     }
 
