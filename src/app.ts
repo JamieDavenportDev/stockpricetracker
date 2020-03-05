@@ -48,6 +48,7 @@ class StockFetcher {
         } catch (e) {
             console.log("An error occurred, error: " + e);
             // Don't necessarily need to reject here, can handle the error and try to continue
+            // Will need to move the try catch inside the loop to do so
             Promise.reject(e);
         }
     }
@@ -59,6 +60,7 @@ class StockFetcher {
                 res.on('data', (data) => {
                     const regMatch = data.toString().match(StockFetcher.REGEX);
                     if (regMatch && regMatch.length > 0) {
+                        // Need to set the floating point to 2 decimals always e.g. 732.00
                         const result = parseFloat(regMatch[0].replace("\"", ""));
                         resolve(result);
                     } else {
