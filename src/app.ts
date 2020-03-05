@@ -1,12 +1,11 @@
 import * as https from "https";
 import * as fs from "fs";
-import * as util from "util";
 import { IncomingMessage } from "http";
 /*
     TODOS:
         1. [DONE] Fetch a price from API
         2. [DONE] Run regex to get the price from that API call
-        3. Store the resulting price in a local file
+        3. [DONE] Store the resulting price in a local file
         4. [DONE] Adapt above to loop over list of stocks
         5. Make regex work for each stock by substituting stock name
         6. Make process interuptable
